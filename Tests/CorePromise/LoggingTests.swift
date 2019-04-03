@@ -22,6 +22,7 @@ class LoggingTests: XCTestCase {
         // Test Logging to Console, the default behavior
         conf.logHandler(.waitOnMainThread)
         conf.logHandler(.pendingPromiseDeallocated)
+        conf.logHandler(.pendingGuaranteeDeallocated)
         conf.logHandler(.cauterized(ForTesting.purposes))
         XCTAssertNil(logOutput)
 
@@ -34,7 +35,7 @@ class LoggingTests: XCTestCase {
 
         conf.logHandler =  { event in
             switch event {
-            case .waitOnMainThread, .pendingPromiseDeallocated:
+            case .waitOnMainThread, .pendingPromiseDeallocated, .pendingGuaranteeDeallocated:
                 logOutput = "\(event)"
             case .cauterized:
                 // Using an enum with associated value does not convert to a string properly in
@@ -83,7 +84,7 @@ class LoggingTests: XCTestCase {
         var logOutput: String? = nil
         conf.logHandler = { event in
             switch event {
-            case .waitOnMainThread, .pendingPromiseDeallocated:
+            case .waitOnMainThread, .pendingPromiseDeallocated, .pendingGuaranteeDeallocated:
                 logOutput = "\(event)"
             case .cauterized:
                 // Using an enum with associated value does not convert to a string properly in
@@ -135,7 +136,7 @@ class LoggingTests: XCTestCase {
         var logOutput: String? = nil
         conf.logHandler = { event in
             switch event {
-            case .waitOnMainThread, .pendingPromiseDeallocated:
+            case .waitOnMainThread, .pendingPromiseDeallocated, .pendingGuaranteeDeallocated:
                 logOutput = "\(event)"
             case .cauterized:
                 // Using an enum with associated value does not convert to a string properly in
@@ -151,6 +152,47 @@ class LoggingTests: XCTestCase {
         let guaranteedString = guaranteeResolve.guarantee.wait()
         XCTAssertEqual("GuaranteeFulfilled", guaranteedString)
         XCTAssertEqual(logOutput!, "waitOnMainThread")
+    }
+    
+    // Verify pendingPromiseDeallocated is logged
+    func testPendingPromiseDeallocatedIsLogged() {
+        
+        var logOutput: String? = nil
+        conf.logHandler = { event in
+            switch event {
+            case .waitOnMainThread, .pendingPromiseDeallocated, .pendingGuaranteeDeallocated:
+                logOutput = "\(event)"
+            case .cauterized:
+                // Using an enum with associated value does not convert to a string properly in
+                // earlier versions of swift
+                logOutput = "cauterized"
+            }
+        }
+        do {
+            let _ = Promise<Int>.pending()
+        }
+        XCTAssertEqual ("pendingPromiseDeallocated", logOutput!)
+    }
+    
+    // Verify pendingGuaranteeDeallocated is logged
+    func testPendingGuaranteeDeallocatedIsLogged() {
+        
+        var logOutput: String? = nil
+        let loggingClosure: (PromiseKit.LogEvent) -> () = { event in
+            switch event {
+            case .waitOnMainThread, .pendingPromiseDeallocated, .pendingGuaranteeDeallocated:
+                logOutput = "\(event)"
+            case .cauterized:
+                // Using an enum with associated value does not convert to a string properly in
+                // earlier versions of swift
+                logOutput = "cauterized"
+            }
+        }
+        conf.logHandler = loggingClosure
+        do {
+            let _ = Guarantee<Int>.pending()
+        }
+        XCTAssertEqual ("pendingGuaranteeDeallocated", logOutput!)
     }
     
     //TODO Verify pending promise deallocation is logged
